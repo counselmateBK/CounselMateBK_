@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CounselMate - Layanan BK Digital & Anti-Bullying</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Chart.js for Graph (Admin Panel) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #F3F4F6;
+        }
+        /* PERBAIKAN: Mengubah background card menjadi Ungu Gelap (Indigo) agar teks putih terbaca */
+        .glass-card {
+            background: rgba(49, 46, 129, 0.90); /* Indigo-900 dengan transparansi */
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- FIREBASE SDK (Placeholder/Setup) -->
+   <script type="module">
+     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+     import { getAuth, GoogleAuthProvider, signInWithPopup } 
+       from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+     import { 
+        getFirestore,
+        collection,
+        addDoc,
+        getDocs,
+        serverTimestamp
+     }  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    // Konfigurasi Firebase Anda
+    const firebaseConfig = {
+      apiKey: "AIzaSyAookFMSLzOXPnW7voG-vzsnPzG0-HmCD0",
+      authDomain: "counselmate-f224b.firebaseapp.com",
+      projectId: "counselmate-f224b",
+      storageBucket: "counselmate-f224b.firebasestorage.app",
+      messagingSenderId: "88185221904",
+      appId: "1:88185221904:web:1cb5feb76d522c29eaab95",
+      measurementId: "G-TT9T98LQ78"
+    };
+
+    const app = initializeApp(firebaseConfig);
+
+    const db = getFirestore(app);
+
+    // expose ke React (Babel)
+    window.db = db;
+    window.addDoc = addDoc;
+    window.getDocs = getDocs;
+    window.collection = collection;
+    window.serverTimestamp = serverTimestamp;
+  </script>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- Mock Data ---
+        const MOCK_STUDENTS = [
+            { id: 1, name: "Budi Santoso", class: "X IPA 1", risk: 'Medium', points: 350, lastMood: "😄" },
+            { id: 2, name: "Siti Aisyah", class: "XI IPS 3", risk: 'Low', points: 120, lastMood: "😐" },
+            { id: 3, name: "Rizky Pratama", class: "X IPA 2", risk: 'High', points: 50, lastMood: "😢" },
+            { id: 4, name: "Andi Wijaya", class: "XII IPA 1", risk: 'Medium', points: 210, lastMood: "😡" },
+        ];
+
+        const EDUCATIONAL_CONTENT = [
+            { id: 1, title: "Apa itu Bullying?", type: "Video", duration: "3 min", points: 50, category: "Dasar", image: "https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?auto=format&fit=crop&q=80&w=400" },
+            { id: 2, title: "Membangun Empati", type: "Artikel", duration: "5 min", points: 30, category: "Soft Skill", image: "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&q=80&w=400" },
+            { id: 3, title: "Cara Melapor Aman", type: "Infografis", duration: "2 min", points: 20, category: "Panduan", image: "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&q=80&w=400" },
+        ];
+
+        const QUIZ_DATA = [
+            { id: 1, question: "Apa yang harus dilakukan jika melihat teman dibully?", options: ["Diam saja", "Ikut membully", "Lapor ke guru/orang dewasa", "Menertawakan"], correctIndex: 2 },
+            { id: 2, question: "Bullying fisik termasuk...", options: ["Memukul", "Mengejek", "Mengucilkan", "Gosip"], correctIndex: 0 },
+            { id: 3, question: "Apa dampak jangka panjang dari bullying bagi korban?", options: ["Peningkatan rasa percaya diri", "Gangguan mental", "Nilai yang membaik", "Jaringan pertemanan yang luas"], correctIndex: 1 },
+        ];
+
+        // --- Icons Component Helper ---
+        const Icon = ({ name, size = 24, className = "" }) => {
+            useEffect(() => {
+                if (window.lucide) {
+                    window.lucide.createIcons();
+                }
+            }, [name]);
+            return <i data-lucide={name} width={size} height={size} className={className}></i>;
+        };
+        
+        // --- Shared Components ---
+
+        const MoodChart = () => {
+            const chartRef = useRef(null);
+            const chartInstance = useRef(null);
+
+            useEffect(() => {
+                const ctx = chartRef.current.getContext('2d');
+
+                if (chartInstance.current) {
+                    chartInstance.current.destroy();
+                }
+
+                chartInstance.current = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'],
+                        datasets: [{
+                            label: 'Tren Mood Mingguan (Mood Score)',
+                            data: [3, 4, 2, 4, 5, 3, 4], // Score 1 (Terburuk) - 5 (Terbaik)
+                            borderColor: '#4F46E5',
+                            backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                            tension: 0.4,
+                            fill: true,
+                            pointBackgroundColor: '#4F46E5',
+                            pointRadius: 5,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: false,
+                                max: 5,
+                                min: 1,
+                                ticks: {
+                                    stepSize: 1,
+                                    callback: function(value) {
+                                        if (value === 5) return 'Sangat Senang 😄';
+                                        if (value === 4) return 'Baik 😊';
+                                        if (value === 3) return 'Biasa 😐';
+                                        if (value === 2) return 'Kurang Baik 😟';
+                                        if (value === 1) return 'Sangat Buruk 😢';
+                                        return '';
+                                    }
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: false
+                            }
+                        }
+                    }
+                });
+
+                return () => {
+                    if (chartInstance.current) {
+                        chartInstance.current.destroy();
+                    }
+                };
+            }, []);
+
+            return <canvas ref={chartRef} className="w-full h-72"></canvas>;
+        };
+
+        // --- STUDENT: Mini Game Quiz Component ---
+        const MiniGameQuiz = ({ quizData, onQuizComplete }) => {
+            const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+            const [selectedAnswer, setSelectedAnswer] = useState(null);
+            const [isFinished, setIsFinished] = useState(false);
+            const [score, setScore] = useState(0);
+
+            if (isFinished) {
+                return (
+                    <div className="text-center p-8">
+                        <div className={`text-6xl mb-4 ${score === quizData.length ? 'text-green-500' : 'text-yellow-500'}`}>
+                            {score === quizData.length ? "🎉" : "💪"}
+                        </div>
+                        <h3 className="text-2xl font-bold text-slate-800 mb-2">Quiz Selesai!</h3>
+                        <p className="text-slate-600 mb-6">Skor akhir kamu:</p>
+                        <div className="text-4xl font-extrabold text-indigo-600 mb-8">{score} dari {quizData.length} Jawaban Benar</div>
+                        <button onClick={() => onQuizComplete(score * 50)} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 transition">
+                            Klaim {score * 50} Poin & Kembali
+                        </button>
+                    </div>
+                );
+            }
+
+            const currentQuestion = quizData[currentQuestionIndex];
+
+            const handleAnswerSelect = (index) => {
+                setSelectedAnswer(index);
+            };
+
+            const handleNext = () => {
+                if (selectedAnswer !== null) {
+                    // Check answer and update score
+                    if (selectedAnswer === currentQuestion.correctIndex) {
+                        setScore(prev => prev + 1);
+                    }
+                    
+                    // Move to next question or finish
+                    if (currentQuestionIndex < quizData.length - 1) {
+                        setCurrentQuestionIndex(prev => prev + 1);
+                        setSelectedAnswer(null);
+                    } else {
+                        setIsFinished(true);
+                    }
+                } else {
+                    alert("Pilih jawabanmu dulu!");
+                }
+            };
+
+            return (
+                <div className="p-8 bg-white rounded-2xl shadow-xl border-t-4 border-indigo-500">
+                    <div className="text-sm font-semibold text-indigo-600 mb-2">
+                        Pertanyaan {currentQuestionIndex + 1} dari {quizData.length}
+                    </div>
+                    <h4 className="text-xl font-bold text-slate-800 mb-6">{currentQuestion.question}</h4>
+
+                    <div className="space-y-4 mb-8">
+                        {currentQuestion.options.map((option, index) => (
+                            <button
+                                key={index}
+                                onClick={() => handleAnswerSelect(index)}
+                                className={`w-full text-left p-4 rounded-xl border-2 transition duration-200 
+                                    ${selectedAnswer === index
+                                        ? 'bg-indigo-100 border-indigo-500 text-indigo-700 font-bold shadow-md'
+                                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                                    }`
+                                }
+                            >
+                                {String.fromCharCode(65 + index)}. {option}
+                            </button>
+                        ))}
+                    </div>
+
+                    <button
+                        onClick={handleNext}
+                        disabled={selectedAnswer === null}
+                        className={`w-full py-3 rounded-xl font-bold transition 
+                            ${selectedAnswer !== null ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`
+                        }
+                    >
+                        {currentQuestionIndex < quizData.length - 1 ? "Lanjut ke Pertanyaan Berikutnya" : "Selesaikan Quiz"}
+                    </button>
+                </div>
+            );
+        };
+
+        // --- Main App Component ---
+        const App = () => {
+            const [user, setUser] = useState(null); // { name, email, role, points, level }
+            const [view, setView] = useState('login'); // login, student-home, admin-home, report, mood, education, quiz
+            const [adminSubView, setAdminSubView] = useState('dashboard'); // dashboard, reports, mood-monitor, students
+            const [moodHistory, setMoodHistory] = useState([]);
+            const [reports, setReports] = useState([
+                { id: 101, type: "Verbal", desc: "Ejekan di kantin", date: "2025-10-12", status: "Selesai", anonymous: false, student: "Budi Santoso", studentId: 1 },
+                { id: 102, type: "Fisik", desc: "Dorong-dorongan di koridor", date: "2025-10-13", status: "Pending", anonymous: true, student: "Anonim", studentId: null },
+                { id: 103, type: "Cyberbullying", desc: "Ancaman di media sosial", date: "2025-10-15", status: "Baru", anonymous: false, student: "Rizky Pratama", studentId: 3 },
+            ]);
+            
+            useEffect(() => {
+              if (user?.role === 'admin') {
+                const loadReports = async () => {
+                  try {
+                    const snapshot = await window.getDocs(
+                      window.collection(window.db, "reports")
+                );
+
+                const data = snapshot.docs.map(doc => ({
+                  id: doc.id,
+                  ...doc.data()
+                }));
+
+                setReports(data);
+              } catch (err) {
+                console.error("Gagal ambil laporan:", err);
+              }
+            };
+
+            loadReports();
+          }
+        }, [user]);
+
+            // --- Authentication Handlers ---
+            const handleLogin = (email, role) => {
+                if (role === 'student') {
+                    setUser({ name: "Siswa Demo", email, role, points: 120, level: 2, badges: ['Pemula', 'Pelapor Berani'] });
+                    setView('student-home');
+                } else {
+                    setUser({ name: "Ibu Guru BK", email, role });
+                    setView('admin-home');
+                    setAdminSubView('dashboard'); // Reset admin view on login
+                }
+            };
+
+            const handleLogout = () => {
+                setUser(null);
+                setView('login');
+                setAdminSubView('dashboard');
+            };
+
+            // --- Student Actions ---
+            const addPoints = (amount) => {
+                setUser(prev => ({ ...prev, points: prev.points + amount }));
+                alert(`Selamat! Kamu mendapatkan +${amount} Poin!`);
+            };
+
+            const handleQuizComplete = (points) => {
+                addPoints(points);
+                setView('education');
+            }
+
+            const submitReport = async (reportData) => {
+              try {
+                await window.addDoc(
+                  window.collection(window.db, "reports"),
+                  {
+                    title: reportData.title,
+                    desc: reportData.desc,
+                    type: reportData.type,
+                    anonymous: reportData.anonymous,
+                    student: reportData.anonymous ? "Anonim" : user.name,
+                    studentEmail: user.email,
+                    status: "Baru",
+                    createdAt: window.serverTimestamp()
+                  }
+                );
+
+                alert("Laporan berhasil dikirim 🙏");
+                addPoints(50);
+                setView('student-home');
+              } catch (error) {
+                console.error(error);
+                alert("Gagal mengirim laporan");
+              }
+            };
+
+            const submitMood = (emoji, note) => {
+                setMoodHistory([{ emoji, note, date: new Date() }, ...moodHistory]);
+                addPoints(10);
+                setView('student-home');
+            };
+            
+            // --- Admin Actions ---
+            const updateReportStatus = (id, newStatus) => {
+                setReports(prev => prev.map(r => r.id === id ? { ...r, status: newStatus } : r));
+            };
+
+            // --- Components Rendering ---
+
+            // 1. LOGIN PAGE (UPDATED BACKGROUND COLOR)
+            if (view === 'login') {
+                return (
+                    <div className="min-h-screen flex items-center justify-center bg-cover bg-center" style={{backgroundImage: 'url("https://images.unsplash.com/photo-1588072432836-e10032774350?auto=format&fit=crop&q=80&w=2000")'}}>
+                        {/* Overlay dipergelap */}
+                        <div className="absolute inset-0 bg-indigo-950/70"></div>
+                        
+                        {/* Glass Card sekarang berwarna UNGU (lihat CSS .glass-card) */}
+                        <div className="relative z-10 w-full max-w-md p-8 glass-card rounded-2xl shadow-2xl mx-4">
+                            <div className="text-center mb-8">
+                                <div className="bg-white/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-sm border border-white/30">
+                                    <Icon name="shield-check" size={32} className="text-white" />
+                                </div>
+                                <h1 className="text-3xl font-bold text-white mb-2">CounselMate</h1>
+                                <p className="text-indigo-200">Platform BK Digital Sahabat Siswa</p>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-white mb-1">Email Sekolah</label>
+                                    <input type="email" placeholder="siswa@sekolah.sch.id" className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-white/20 transition" />
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-4 mt-6">
+                                    <button onClick={() => handleLogin('siswa@test.com', 'student')} className="group flex flex-col items-center justify-center p-4 rounded-xl border border-white/20 hover:bg-white/20 transition duration-300 bg-white/5">
+                                        <Icon name="graduation-cap" className="text-indigo-200 mb-2 group-hover:text-white" />
+                                        <span className="text-white font-medium">Masuk sbg Siswa</span>
+                                    </button>
+                                    <button onClick={() => handleLogin('guru@test.com', 'admin')} className="group flex flex-col items-center justify-center p-4 rounded-xl border border-white/20 hover:bg-white/20 transition duration-300 bg-white/5">
+                                        <Icon name="briefcase" className="text-purple-200 mb-2 group-hover:text-white" />
+                                        <span className="text-white font-medium">Masuk sbg Guru</span>
+                                    </button>
+                                </div>
+
+                                <div className="mt-6">
+                                  <button
+                                    onClick={async () => {
+                                      try {
+                                        const result = await window.signInWithPopup(
+                                          window.firebaseAuth,
+                                          window.googleProvider
+                                        );
+
+                                        const user = result.user;
+
+                                        handleLogin(user.email, 'student');
+                                      } catch (err) {
+                                        // Ignore popup closed by user error
+                                        console.log("Login dibatalkan atau error:", err);
+                                      }
+                                    }}
+                                    className="w-full bg-white text-indigo-900 py-3 rounded-xl font-bold hover:bg-indigo-50 transition flex items-center justify-center gap-2 shadow-lg"
+                                  >
+                                    <img src="https://cdn-icons-png.flaticon.com/512/2991/2991148.png" className="w-5 h-5" alt="Google" />
+                                    Masuk dengan Google
+                                  </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // 2. LAYOUT WRAPPER (NAVBAR)
+            const Navbar = () => (
+                <nav className="bg-white shadow-sm sticky top-0 z-50">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="flex justify-between h-16">
+                            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView(user.role === 'student' ? 'student-home' : 'admin-home')}>
+                                <div className="bg-indigo-600 p-1.5 rounded-lg">
+                                    <Icon name="shield" size={20} className="text-white" />
+                                </div>
+                                <span className="font-bold text-xl text-slate-800">CounselMate</span>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                {user.role === 'student' && (
+                                    <div className="hidden md:flex items-center gap-2 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">
+                                        <Icon name="star" size={16} className="text-yellow-500 fill-yellow-500" />
+                                        <span className="font-bold text-indigo-700">{user.points} Poin</span>
+                                    </div>
+                                )}
+                                <div className="flex items-center gap-3">
+                                    <div className="text-right hidden sm:block">
+                                        <p className="text-sm font-semibold text-slate-700">{user.name}</p>
+                                        <p className="text-xs text-slate-500 capitalize">{user.role === 'student' ? 'Siswa' : 'Guru BK'}</p>
+                                    </div>
+                                    <div className="h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-bold border-2 border-white shadow-sm">
+                                        {user.name[0]}
+                                    </div>
+                                    <button onClick={handleLogout} className="p-2 hover:bg-slate-100 rounded-full text-slate-500">
+                                        <Icon name="log-out" size={20} />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </nav>
+            );
+
+            // 3. STUDENT DASHBOARD & VIEWS
+            if (user.role === 'student') {
+                const StudentSidebar = () => (
+                    <nav className="fixed bottom-0 left-0 right-0 md:hidden bg-white border-t border-slate-200 z-40 p-2 shadow-2xl">
+                        <div className="flex justify-around">
+                            {[
+                                { name: 'Beranda', icon: 'home', view: 'student-home' },
+                                { name: 'Edukasi', icon: 'book-open', view: 'education' },
+                                { name: 'Mood', icon: 'smile', view: 'mood' },
+                                { name: 'Lapor', icon: 'megaphone', view: 'report' },
+                            ].map(item => (
+                                <button
+                                    key={item.name}
+                                    onClick={() => setView(item.view)}
+                                    className={`flex flex-col items-center p-2 rounded-lg text-xs font-medium transition ${view === item.view ? 'text-indigo-600' : 'text-slate-500 hover:text-indigo-600'}`}
+                                >
+                                    <Icon name={item.icon} size={20} />
+                                    <span className="mt-1">{item.name}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </nav>
+                );
+
+                const renderStudentContent = () => {
+                    switch (view) {
+                        case 'student-home':
+                            return (
+                                <main className="max-w-7xl mx-auto px-4 py-8 animate-fade-in pb-20 md:pb-8">
+                                    {/* Hero Section */}
+                                    <div className="rounded-3xl gradient-bg p-8 text-white shadow-xl mb-8 relative overflow-hidden">
+                                        <div className="relative z-10">
+                                            <h2 className="text-3xl font-bold mb-2">Halo, {user.name.split(' ')[0]}! 👋</h2>
+                                            <p className="text-indigo-100 mb-6 max-w-lg">Poinmu: <span className="font-extrabold">{user.points} XP</span></p>
+                                            <div className="flex flex-wrap gap-3">
+                                                <button onClick={() => setView('report')} className="bg-white text-indigo-600 px-6 py-2.5 rounded-xl font-bold shadow-lg hover:bg-indigo-50 transition flex items-center gap-2">
+                                                    <Icon name="megaphone" size={18} /> Lapor Sekarang
+                                                </button>
+                                                <button onClick={() => setView('mood')} className="bg-indigo-500/30 backdrop-blur-md border border-white/20 text-white px-6 py-2.5 rounded-xl font-medium hover:bg-indigo-500/40 transition">
+                                                    Mood Tracker
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <Icon name="heart-handshake" size={300} className="absolute -right-10 -bottom-20 text-white/10 rotate-12" />
+                                    </div>
+        
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                        {/* Gamification Stats */}
+                                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 h-fit">
+                                            <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
+                                                <Icon name="trophy" className="text-yellow-500" /> Progress Kamu
+                                            </h3>
+                                            <div className="mb-4">
+                                                <div className="flex justify-between text-sm mb-1">
+                                                    <span className="text-slate-500">Level {user.level}</span>
+                                                    <span className="text-indigo-600 font-bold">{user.points}/200 XP</span>
+                                                </div>
+                                                <div className="w-full bg-slate-100 rounded-full h-2.5">
+                                                    <div className="bg-indigo-500 h-2.5 rounded-full" style={{width: `${Math.min(100, (user.points/200)*100)}%`}}></div>
+                                                </div>
+                                            </div>
+                                            <h4 className="font-semibold text-slate-700 mb-2">Koleksi Badge</h4>
+                                            <div className="flex gap-2 flex-wrap mt-4">
+                                                {user.badges.map((badge, idx) => (
+                                                    <span key={idx} className="bg-yellow-50 text-yellow-700 text-xs px-2 py-1 rounded-md border border-yellow-100 font-medium flex items-center gap-1">
+                                                        <Icon name="award" size={12} className="text-yellow-400" /> {badge}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+        
+                                        {/* Education Cards */}
+                                        <div className="md:col-span-2">
+                                            <div className="flex justify-between items-center mb-4">
+                                                <h3 className="font-bold text-slate-700 text-lg">Materi & Game</h3>
+                                                <button onClick={() => setView('education')} className="text-sm text-indigo-600 font-medium hover:underline">Lihat Semua</button>
+                                            </div>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                {EDUCATIONAL_CONTENT.slice(0, 2).map(item => (
+                                                    <div key={item.id} className="bg-white p-4 rounded-xl border border-slate-100 hover:shadow-md transition cursor-pointer group" onClick={() => addPoints(item.points)}>
+                                                        <div className="h-32 rounded-lg bg-slate-200 mb-3 overflow-hidden relative">
+                                                            <img src={item.image} alt={item.title} className="w-full h-full object-cover group-hover:scale-110 transition duration-500" />
+                                                            <span className="absolute top-2 right-2 bg-black/50 backdrop-blur-sm text-white text-xs px-2 py-1 rounded">{item.type}</span>
+                                                        </div>
+                                                        <h4 className="font-bold text-slate-800 mb-1">{item.title}</h4>
+                                                        <div className="flex justify-between items-center text-xs text-slate-500">
+                                                            <span>{item.duration}</span>
+                                                            <span className="text-indigo-600 font-bold">+{item.points} XP</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </main>
+                            );
+
+                        case 'report':
+                            return (
+                                <main className="max-w-3xl mx-auto px-4 py-8 animate-fade-in pb-20 md:pb-8">
+                                    <button onClick={() => setView('student-home')} className="mb-4 text-slate-500 hover:text-indigo-600 flex items-center gap-1">
+                                        <Icon name="arrow-left" size={16} /> Kembali
+                                    </button>
+                                    <div className="bg-white rounded-2xl shadow-lg p-8 border-t-4 border-indigo-500">
+                                        <div className="flex items-center gap-4 mb-6">
+                                            <div className="bg-indigo-100 p-3 rounded-full">
+                                                <Icon name="file-warning" className="text-indigo-600" size={28} />
+                                            </div>
+                                            <div>
+                                                <h2 className="text-2xl font-bold text-slate-800">Formulir Pelaporan</h2>
+                                                <p className="text-slate-500 text-sm">Laporanmu akan ditangani secara rahasia.</p>
+                                            </div>
+                                        </div>
+
+                                        <form onSubmit={(e) => { e.preventDefault(); submitReport({
+                                            title: e.target.title.value,
+                                            desc: e.target.desc.value,
+                                            type: e.target.type.value,
+                                            anonymous: e.target.anon.checked
+                                        })}}>
+                                            <div className="space-y-4">
+                                                <div>
+                                                    <label className="block text-sm font-medium text-slate-700 mb-1">Judul Kejadian</label>
+                                                    <input name="title" required type="text" className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none" placeholder="Contoh: Pemalakan di kantin" />
+                                                </div>
+                                                
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-slate-700 mb-1">Jenis Bullying</label>
+                                                        <select name="type" className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                                                            <option>Fisik</option>
+                                                            <option>Verbal (Kata-kata)</option>
+                                                            <option>Cyberbullying (Sosmed)</option>
+                                                            <option>Lainnya</option>
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-slate-700 mb-1">Waktu Kejadian</label>
+                                                        <input type="date" className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                                    </div>
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-sm font-medium text-slate-700 mb-1">Deskripsi Detail</label>
+                                                    <textarea name="desc" rows="4" className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Ceritakan kronologinya..."></textarea>
+                                                </div>
+
+                                                <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-100 flex items-start gap-3">
+                                                    <input type="checkbox" id="anon" name="anon" className="mt-1 w-4 h-4 text-indigo-600 rounded" />
+                                                    <label htmlFor="anon" className="text-sm text-slate-700">
+                                                        <span className="font-bold block text-slate-800">Kirim sebagai Anonim</span>
+                                                        Nama kamu tidak akan terlihat oleh Guru BK. Centang jika kamu ingin privasi penuh.
+                                                    </label>
+                                                </div>
+
+                                                <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition shadow-lg shadow-indigo-200">
+                                                    Kirim Laporan
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </main>
+                            );
+
+                        case 'mood':
+                            return (
+                                <main className="max-w-2xl mx-auto px-4 py-8 animate-fade-in text-center pb-20 md:pb-8">
+                                    <button onClick={() => setView('student-home')} className="mb-8 text-slate-500 hover:text-indigo-600 flex items-center gap-1 mx-auto">
+                                        <Icon name="arrow-left" size={16} /> Kembali ke Beranda
+                                    </button>
+                                    <h2 className="text-3xl font-bold text-slate-800 mb-2">Bagaimana perasaanmu hari ini?</h2>
+                                    <p className="text-slate-500 mb-8">Pilih emoji yang paling menggambarkan hatimu.</p>
+                                    
+                                    <div className="flex justify-center gap-4 mb-8 flex-wrap">
+                                        {[
+                                            {emoji: "😄", label: "Senang", color: "bg-green-100 hover:bg-green-200 border-green-200"},
+                                            {emoji: "😐", label: "Biasa", color: "bg-gray-100 hover:bg-gray-200 border-gray-200"},
+                                            {emoji: "😢", label: "Sedih", color: "bg-blue-100 hover:bg-blue-200 border-blue-200"},
+                                            {emoji: "😡", label: "Marah", color: "bg-red-100 hover:bg-red-200 border-red-200"},
+                                            {emoji: "😨", label: "Takut", color: "bg-purple-100 hover:bg-purple-200 border-purple-200"}
+                                        ].map((m, i) => (
+                                            <button key={i} onClick={() => submitMood(m.emoji, m.label)} className={`${m.color} w-20 h-24 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition transform hover:scale-105`}>
+                                                <span className="text-4xl">{m.emoji}</span>
+                                                <span className="text-xs font-bold text-slate-600">{m.label}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 text-left max-w-lg mx-auto">
+                                        <div className="flex items-center gap-2 mb-4">
+                                            <Icon name="bot" className="text-indigo-500" />
+                                            <span className="font-bold text-slate-700">AI Mood Assistant (Simulasi)</span>
+                                        </div>
+                                        <p className="text-sm text-slate-600 bg-slate-50 p-4 rounded-lg">
+                                            "Ingat, semua perasaan itu valid. Jika kamu merasa sedih atau takut, jangan ragu untuk bercerita kepada Guru BK atau teman yang kamu percaya. Kamu hebat!"
+                                        </p>
+                                    </div>
+                                </main>
+                            );
+
+                        case 'education':
+                            return (
+                                <main className="max-w-5xl mx-auto px-4 py-8 animate-fade-in pb-20 md:pb-8">
+                                    <button onClick={() => setView('student-home')} className="mb-6 text-slate-500 hover:text-indigo-600 flex items-center gap-1">
+                                        <Icon name="arrow-left" size={16} /> Kembali
+                                    </button>
+                                    
+                                    <div className="mb-8">
+                                        <h2 className="text-2xl font-bold text-slate-800 mb-2">Pusat Edukasi & Game</h2>
+                                        <p className="text-slate-500">Tonton video, baca artikel, dan mainkan kuis untuk dapat poin!</p>
+                                    </div>
+
+                                    {/* Mini Game / Quiz Section */}
+                                    <div className="bg-indigo-900 rounded-2xl p-6 text-white mb-8 flex flex-col md:flex-row items-center justify-between shadow-xl">
+                                        <div className="mb-4 md:mb-0">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <span className="bg-yellow-500 text-indigo-900 text-xs font-bold px-2 py-1 rounded">Daily Quiz</span>
+                                                <span className="text-indigo-300 text-sm">{QUIZ_DATA.length} Soal Tersedia</span>
+                                            </div>
+                                            <h3 className="text-xl font-bold mb-1">Kuis Anti-Bullying</h3>
+                                            <p className="text-indigo-200 text-sm">Uji pengetahuanmu dan dapatkan poin hingga {QUIZ_DATA.length * 50} XP</p>
+                                        </div>
+                                        <button onClick={() => setView('quiz')} className="bg-white text-indigo-900 px-6 py-3 rounded-xl font-bold hover:bg-indigo-50 transition w-full md:w-auto">
+                                            Mainkan Sekarang
+                                        </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        {EDUCATIONAL_CONTENT.map(item => (
+                                            <div key={item.id} className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden hover:shadow-lg transition">
+                                                <div className="h-40 bg-slate-200 relative">
+                                                    <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
+                                                    <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded text-xs font-bold text-slate-700">
+                                                        {item.category}
+                                                    </div>
+                                                </div>
+                                                <div className="p-5">
+                                                    <div className="flex items-center gap-2 mb-2 text-xs text-slate-500 uppercase font-semibold">
+                                                        <Icon name={item.type === 'Video' ? 'play-circle' : 'file-text'} size={14} />
+                                                        {item.type} • {item.duration}
+                                                    </div>
+                                                    <h4 className="text-lg font-bold text-slate-800 mb-2">{item.title}</h4>
+                                                    <button onClick={() => addPoints(item.points)} className="w-full mt-2 bg-indigo-50 text-indigo-600 py-2 rounded-lg font-semibold hover:bg-indigo-100 transition text-sm">
+                                                        Pelajari (+{item.points} XP)
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </main>
+                            );
+
+                        case 'quiz':
+                            return (
+                                <main className="max-w-xl mx-auto px-4 py-8 animate-fade-in pb-20 md:pb-8">
+                                    <h2 className="text-2xl font-bold text-slate-800 mb-6 text-center">Mini-Quiz Empati</h2>
+                                    <MiniGameQuiz quizData={QUIZ_DATA} onQuizComplete={handleQuizComplete} />
+                                </main>
+                            );
+                        default:
+                            return null;
+                    }
+                };
+                
+                return (
+                    <div className="min-h-screen bg-slate-50">
+                        <Navbar />
+                        {renderStudentContent()}
+                        <StudentSidebar />
+                    </div>
+                );
+            }
+
+            // 4. ADMIN (GURU BK) DASHBOARD & VIEWS
+            if (user.role === 'admin') {
+
+                // ADMIN: Laporan Masuk
+                const AdminReports = () => (
+                    <div className="animate-fade-in">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-xl font-bold text-slate-800">Daftar Semua Laporan</h2>
+                        </div>
+
+                        <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="text-xs text-slate-500 uppercase bg-slate-50">
+                                        <tr>
+                                            <th className="px-6 py-4">Judul & Pelapor</th>
+                                            <th className="px-6 py-4">Kategori</th>
+                                            <th className="px-6 py-4">Tanggal</th>
+                                            <th className="px-6 py-4">Status</th>
+                                            <th className="px-6 py-4">Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {reports.map((report) => (
+                                            <tr key={report.id} className="border-b border-slate-50 hover:bg-slate-50/50">
+                                                <td className="px-6 py-4 font-medium text-slate-900">
+                                                    <span className="block font-semibold">{report.title}</span>
+                                                    {report.anonymous 
+                                                        ? <span className="flex items-center gap-1 text-slate-400 italic text-xs"><Icon name="ghost" size={14}/> Anonim</span> 
+                                                        : <span className="text-xs text-indigo-600">{report.student}</span>}
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className={`px-2 py-1 rounded text-xs font-bold ${report.type === 'Fisik' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
+                                                        {report.type}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-slate-500">{report.date}</td>
+                                                <td className="px-6 py-4">
+                                                    <select 
+                                                        value={report.status} 
+                                                        onChange={(e) => updateReportStatus(report.id, e.target.value)}
+                                                        className={`p-1 rounded-full text-xs font-bold border-0 appearance-none outline-none ${report.status === 'Baru' ? 'bg-blue-100 text-blue-700' : report.status === 'Selesai' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}
+                                                    >
+                                                        <option value="Baru">Baru</option>
+                                                        <option value="Pending">Diproses</option>
+                                                        <option value="Selesai">Selesai</option>
+                                                    </select>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <button className="text-indigo-600 hover:text-indigo-900 font-medium text-xs">Detail & Catatan</button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                );
+
+                // ADMIN: Monitor Mood
+                const AdminMoodMonitor = () => (
+                    <div className="animate-fade-in">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-xl font-bold text-slate-800">Monitor Tren Emosi Siswa</h2>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 lg:col-span-2">
+                                <h3 className="font-bold text-slate-800 mb-4">Tren Mood Rata-Rata Kelas</h3>
+                                <MoodChart />
+                            </div>
+                            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                                <h3 className="font-bold text-slate-800 mb-4">Indikator Risiko Emosi</h3>
+                                <div className="space-y-4">
+                                    {MOCK_STUDENTS.filter(s => s.risk === 'High').map(s => (
+                                        <div key={s.id} className="p-3 bg-red-50 rounded-lg border border-red-200 flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <Icon name="user-x" size={20} className="text-red-500" />
+                                                <div>
+                                                    <p className="font-semibold text-slate-800 text-sm">{s.name}</p>
+                                                    <p className="text-xs text-slate-500">{s.class}</p>
+                                                </div>
+                                            </div>
+                                            <span className="text-xl">{s.lastMood}</span>
+                                        </div>
+                                    ))}
+                                    <p className="text-xs text-slate-500 pt-2">Siswa dengan Mood Rating 1 atau 2 berturut-turut perlu dipantau.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+
+                // ADMIN: Data Siswa
+                const AdminStudents = () => (
+                    <div className="animate-fade-in">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-xl font-bold text-slate-800">Daftar Siswa & Aktivitas</h2>
+                        </div>
+
+                        <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="text-xs text-slate-500 uppercase bg-slate-50">
+                                        <tr>
+                                            <th className="px-6 py-4">Nama Siswa</th>
+                                            <th className="px-6 py-4">Kelas</th>
+                                            <th className="px-6 py-4">Total Poin</th>
+                                            <th className="px-6 py-4">Mood Terakhir</th>
+                                            <th className="px-6 py-4">Status Risiko</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {MOCK_STUDENTS.map((s) => (
+                                            <tr key={s.id} className="border-b border-slate-50 hover:bg-slate-50/50">
+                                                <td className="px-6 py-4 font-medium text-slate-900">{s.name}</td>
+                                                <td className="px-6 py-4 text-slate-600">{s.class}</td>
+                                                <td className="px-6 py-4 font-bold text-indigo-600">{s.points} XP</td>
+                                                <td className="px-6 py-4 text-xl">{s.lastMood}</td>
+                                                <td className="px-6 py-4">
+                                                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${s.risk === 'High' ? 'bg-red-100 text-red-700' : s.risk === 'Medium' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
+                                                        {s.risk}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                );
+
+                // ADMIN: Main Content Router
+                const renderAdminContent = () => {
+                    switch (adminSubView) {
+                        case 'reports':
+                            return <AdminReports />;
+                        case 'mood-monitor':
+                            return <AdminMoodMonitor />;
+                        case 'students':
+                            return <AdminStudents />;
+                        case 'dashboard':
+                        default:
+                            return (
+                                <div className="animate-fade-in">
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <span className="text-slate-500 text-sm font-medium">Laporan Baru</span>
+                                                <div className="bg-red-100 p-2 rounded-lg"><Icon name="bell" size={20} className="text-red-600" /></div>
+                                            </div>
+                                            <div className="text-3xl font-bold text-slate-800">{reports.filter(r => r.status === 'Baru').length}</div>
+                                            <div className="text-xs text-red-500 mt-1">Perlu tindakan segera</div>
+                                        </div>
+                                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <span className="text-slate-500 text-sm font-medium">Siswa Berisiko</span>
+                                                <div className="bg-orange-100 p-2 rounded-lg"><Icon name="alert-triangle" size={20} className="text-orange-600" /></div>
+                                            </div>
+                                            <div className="text-3xl font-bold text-slate-800">{MOCK_STUDENTS.filter(s => s.risk === 'High').length}</div>
+                                            <div className="text-xs text-slate-500 mt-1">Berdasarkan data mood</div>
+                                        </div>
+                                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <span className="text-slate-500 text-sm font-medium">Total Poin Siswa</span>
+                                                <div className="bg-blue-100 p-2 rounded-lg"><Icon name="star" size={20} className="text-blue-600" /></div>
+                                            </div>
+                                            <div className="text-3xl font-bold text-slate-800">{MOCK_STUDENTS.reduce((sum, s) => sum + s.points, 0)}</div>
+                                            <div className="text-xs text-green-500 mt-1">Total Poin Gamifikasi</div>
+                                        </div>
+                                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <span className="text-slate-500 text-sm font-medium">Siswa Aktif</span>
+                                                <div className="bg-green-100 p-2 rounded-lg"><Icon name="users" size={20} className="text-green-600" /></div>
+                                            </div>
+                                            <div className="text-3xl font-bold text-slate-800">{MOCK_STUDENTS.length}</div>
+                                            <div className="text-xs text-slate-500 mt-1">Total pengguna terdaftar</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                                            <h3 className="font-bold text-slate-800 mb-4">Tren Mood (Mingguan)</h3>
+                                            <MoodChart />
+                                        </div>
+                                        <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+                                            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                                                <h3 className="font-bold text-slate-800">Laporan Masuk Terbaru</h3>
+                                                <button onClick={() => setAdminSubView('reports')} className="text-sm text-indigo-600 hover:underline">Lihat Semua</button>
+                                            </div>
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full text-sm text-left">
+                                                    <tbody>
+                                                        {reports.slice(0, 3).map((report) => (
+                                                            <tr key={report.id} className="border-b border-slate-50 hover:bg-slate-50/50">
+                                                                <td className="px-6 py-3 font-medium text-slate-900">
+                                                                    <span className="block font-semibold">{report.title}</span>
+                                                                    {report.anonymous 
+                                                                        ? <span className="flex items-center gap-1 text-slate-400 italic text-xs"><Icon name="ghost" size={12}/> Anonim</span> 
+                                                                        : <span className="text-xs text-indigo-600">{report.student}</span>}
+                                                                </td>
+                                                                <td className="px-6 py-3">
+                                                                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${report.status === 'Baru' ? 'bg-blue-100 text-blue-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                                                        {report.status}
+                                                                    </span>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                    }
+                };
+
+                return (
+                    <div className="min-h-screen bg-slate-50">
+                        <Navbar />
+                        <div className="flex h-[calc(100vh-64px)]">
+                            {/* Sidebar */}
+                            <aside className="w-64 bg-white border-r border-slate-200 hidden md:block">
+                                <div className="p-6">
+                                    <h3 className="text-xs font-bold text-slate-400 uppercase mb-4">Menu Guru BK</h3>
+                                    <nav className="space-y-2">
+                                        {[
+                                            { name: 'Dashboard Utama', icon: 'layout-dashboard', view: 'dashboard' },
+                                            { name: 'Laporan Masuk', icon: 'inbox', view: 'reports', count: reports.filter(r => r.status === 'Baru').length },
+                                            { name: 'Monitor Mood', icon: 'smile', view: 'mood-monitor' },
+                                            { name: 'Data Siswa', icon: 'users', view: 'students' },
+                                            { name: 'Konten Edukasi', icon: 'edit', view: 'content-management' },
+                                        ].map(item => (
+                                            <button
+                                                key={item.view}
+                                                onClick={() => setAdminSubView(item.view)}
+                                                className={`w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition ${adminSubView === item.view ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'}`}
+                                            >
+                                                <Icon name={item.icon} size={20} /> 
+                                                {item.name}
+                                                {item.count > 0 && (
+                                                    <span className="ml-auto bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{item.count}</span>
+                                                )}
+                                            </button>
+                                        ))}
+                                    </nav>
+                                </div>
+                            </aside>
+
+                            {/* Main Content */}
+                            <main className="flex-1 p-8 overflow-y-auto">
+                                <div className="flex justify-between items-center mb-8">
+                                    <h1 className="text-2xl font-bold text-slate-800">{
+                                        adminSubView === 'dashboard' ? 'Dashboard Utama' :
+                                        adminSubView === 'reports' ? 'Laporan Masuk' :
+                                        adminSubView === 'mood-monitor' ? 'Monitor Mood Siswa' :
+                                        adminSubView === 'students' ? 'Data Siswa & Aktivitas' :
+                                        'Manajemen Konten Edukasi'
+                                    }</h1>
+                                    <button className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-indigo-700">
+                                        <Icon name="plus" size={16} /> Buat Sesi Konseling
+                                    </button>
+                                </div>
+                                {renderAdminContent()}
+                            </main>
+                        </div>
+                    </div>
+                );
+            }
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
